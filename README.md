@@ -44,6 +44,8 @@ Core building blocks for any time-series pipeline. These are the foundation that
 
 **Exponentially Weighted Moving Average.** Produces a smoothed version of the input where each output sample is a weighted blend of the current input and the previous output. The `alpha` parameter (0-1) controls responsiveness: high alpha tracks the input closely, low alpha produces heavy smoothing. Time constant is approximately `1/alpha` samples. Commonly used as a fast, state-friendly alternative to a simple moving average when you need O(1) updates per sample.
 
+> **Plain English:** Smooths out a bumpy signal by blending each new measurement with the previous smoothed value, like a running average that forgets old data gradually.
+
 - **`data`** -- input signal samples
 - **`alpha`** -- smoothing factor in `[0, 1]`. 1.0 = no smoothing, 0.0 = frozen at first value
 - **Returns** -- smoothed signal of same length
@@ -52,6 +54,8 @@ Core building blocks for any time-series pipeline. These are the foundation that
 
 **Simple Moving Average (SMA).** Computes the arithmetic mean of the last `window` samples at each position. Slides a fixed-width window across the signal. Each output sample represents the local average, filtering out high-frequency noise. The output is `NaN` for the first `window - 1` positions. Internally uses a running sum for O(n) total computation instead of recomputing the sum at each step.
 
+> **Plain English:** Averages the last few readings at each point, like calculating your rolling GPA -- it shows the general trend while ignoring brief hiccups.
+
 - **`window`** -- number of samples to average (must be >= 1 and <= data length)
 - **Returns** -- smoothed signal with `NaN` prefix
 
@@ -59,11 +63,15 @@ Core building blocks for any time-series pipeline. These are the foundation that
 
 **Population Variance per Window.** Measures how much the signal deviates from its local mean within each window. High variance indicates a noisy or erratic segment; low variance indicates a stable segment. Uses population variance (divides by `n`, not `n-1`) because a rolling window is a complete set, not a sample from a larger population. Useful for detecting periods of instability in vital signs.
 
+> **Plain English:** Tells you how jumpy or steady the signal has been recently -- a calm heart rate has low variance, an erratic one has high variance.
+
 - **Returns** -- variance values in the same units as the input squared
 
 #### `rolling_median(data: &[f64], window: usize) -> Vec<f64>`
 
 **Rolling Median.** Computes the middle value of the sorted window contents at each position. Unlike the mean, the median is **robust to outliers** -- a single spike or artifact won't shift the median much. Ideal for baseline estimation in noisy physiological signals where you want to reject transient artifacts without distorting the underlying trend.
+
+> **Plain English:** Picks the middle value in each group of readings, ignoring extreme highs and lows -- like finding the 'typical' reading while throwing out the weird ones.
 
 - **Returns** -- median values, robust against spikes
 
@@ -71,15 +79,21 @@ Core building blocks for any time-series pipeline. These are the foundation that
 
 **Rolling Minimum / Maximum.** Tracks the lowest or highest value within each window. Useful for envelope detection (finding the bounds of a waveform), detecting sensor saturation, or establishing dynamic thresholds for alert generation.
 
+> **Plain English:** Tracks the lowest or highest reading in a sliding window, like monitoring the daily high and low temperatures over the past week.
+
 - **Returns** -- per-window extreme values
 
 #### `rolling_range(data: &[f64], window: usize) -> Vec<f64>`
 
 **Rolling Range (max - min).** Measures the peak-to-peak spread within each window -- how much the signal varies locally. A rising range can indicate increasing instability in a vital sign (e.g., blood pressure becoming more variable). Computed by combining `rolling_min` and `rolling_max`.
 
+> **Plain English:** Measures the spread between the highest and lowest recent readings -- like checking how much the temperature has been swinging back and forth.
+
 #### `rolling_slope(data: &[f64], window: usize) -> Vec<f64>`
 
 **OLS Linear Trend Slope per Window.** Fits a straight line through the samples in each window using ordinary least squares and returns the slope. Positive slope = upward trend, negative = downward, magnitude = rate of change per sample. Essential for detecting deteriorating trends: a persistently positive heart-rate slope over clinical windows is an early warning sign.
+
+> **Plain English:** Shows whether the signal is generally going up, down, or staying flat -- like telling you if a patient's temperature is steadily rising or holding steady.
 
 - **`window`** -- must be >= 2 (need at least 2 points to define a slope)
 - **Returns** -- slope in units-per-sample at each position
@@ -88,11 +102,15 @@ Core building blocks for any time-series pipeline. These are the foundation that
 
 **Coefficient of Variation per Window.** Computes `std / |mean|` for each window. This is a normalized measure of dispersion that allows comparing variability across signals with different scales. A CV of 0.1 means the standard deviation is 10% of the mean. Useful for detecting when a signal becomes proportionally more variable regardless of its absolute level.
 
+> **Plain English:** Measures how wobbly the signal is relative to its average level -- like saying 'this heart rate is 10% jittery' instead of just 'it varies by 5 beats per minute.'
+
 - **Returns** -- dimensionless variability ratio (NaN where mean is near zero)
 
 #### `rolling_entropy(data: &[f64], window: usize, bins: usize) -> Vec<f64>`
 
 **Shannon Entropy over Discretized Bins.** Divides the value range within each window into `bins` equal-width buckets, counts how many samples fall into each bucket, and computes the Shannon entropy of the resulting distribution. High entropy = values are spread uniformly across the range (complex/unpredictable signal). Low entropy = values are concentrated in few bins (simple/periodic signal). Useful for distinguishing regular rhythms from irregular ones.
+
+> **Plain English:** Measures how unpredictable the signal is -- a steady heartbeat has low entropy (boring and predictable), while a chaotic irregular rhythm has high entropy (full of surprises).
 
 - **`bins`** -- number of histogram buckets (more bins = finer granularity, but needs more samples per window)
 - **Returns** -- entropy in bits (0 = constant signal, log2(bins) = maximally spread)
@@ -101,12 +119,16 @@ Core building blocks for any time-series pipeline. These are the foundation that
 
 **Third Standardized Moment (Asymmetry).** Measures whether the distribution within each window leans to one side. Positive skew = right tail (occasional high spikes), negative skew = left tail (occasional dips), zero = symmetric. In clinical contexts, skewed vital-sign distributions often indicate intermittent events (e.g., occasional blood pressure spikes) superimposed on a stable baseline.
 
+> **Plain English:** Checks whether the readings tend to cluster on one side with occasional stragglers on the other -- like noticing that blood pressure is usually normal but occasionally spikes high.
+
 - **`window`** -- must be >= 3
 - **Returns** -- dimensionless skewness value
 
 #### `rolling_kurtosis(data: &[f64], window: usize) -> Vec<f64>`
 
 **Excess Kurtosis (Fisher Definition).** Measures the "tailedness" of the distribution within each window. Kurtosis > 0 (excess) means heavier tails than a normal distribution -- outliers are more frequent. Kurtosis < 0 means lighter tails -- values are concentrated near the mean. High kurtosis in a vital sign can indicate intermittent extreme deviations (e.g., arrhythmia bursts within otherwise normal heart rate).
+
+> **Plain English:** Detects whether the signal has more extreme outliers than you'd expect -- like spotting that a patient occasionally has dramatic heart rate jumps amid otherwise normal readings.
 
 - **`window`** -- must be >= 4
 - **Returns** -- excess kurtosis (0 = same tails as Gaussian, positive = heavier tails)
@@ -115,11 +137,15 @@ Core building blocks for any time-series pipeline. These are the foundation that
 
 **Trend Reversal Detector.** Runs `rolling_slope` and identifies indices where the slope sign flips (positive to negative or vice versa). Each index represents a point where the signal's direction changed. Useful for finding peaks, troughs, and inflection points in physiological waveforms without requiring the signal to cross a fixed threshold.
 
+> **Plain English:** Finds the moments when a vital sign switches direction -- going from rising to falling or vice versa -- like identifying the peaks and valleys on a chart.
+
 - **Returns** -- indices where the trend reversed
 
 #### `trend_slope(values: &[f64]) -> f64`
 
 **Global OLS Slope.** Fits a single straight line through the entire input using ordinary least squares. Returns the slope in units-per-sample. Useful as a quick summary of whether a vital sign is trending up, down, or flat over the entire observation window.
+
+> **Plain English:** Draws an imaginary straight line through all the readings and tells you whether it points up, down, or stays flat -- a one-number summary of the overall trend.
 
 ---
 
@@ -131,6 +157,8 @@ These functions identify corrupt samples, sensor disconnects, and transient arti
 
 **Z-Score Spike Detector.** For each sample, computes the mean and standard deviation of the preceding `window` samples, then calculates how many standard deviations the current sample is from that local mean. If the absolute z-score exceeds `z_threshold`, the sample index is flagged. Assumes the "normal" signal is locally stationary and any large deviation is suspicious. Best for detecting sudden, isolated transients (motion artifacts, sensor glitches).
 
+> **Plain English:** Flags any reading that's unusually far from the recent normal range, like a 'that doesn't look right' detector.
+
 - **`window`** -- trailing reference window (must be >= 2 and < data length)
 - **`z_threshold`** -- typically 2.5-4.0; higher = fewer detections, more conservative
 - **Returns** -- indices of detected spikes
@@ -139,6 +167,8 @@ These functions identify corrupt samples, sensor disconnects, and transient arti
 
 **Median Absolute Deviation (MAD) Outlier Detector.** A robust alternative to z-score that uses the median and MAD instead of mean and standard deviation. The MAD is the median of absolute deviations from the median -- it measures typical spread without being influenced by the outliers themselves. Each sample gets a modified z-score: `0.6745 * |value - median| / MAD`. The 0.6745 constant scales MAD to be comparable with standard deviation under normality. Far more reliable than z-score when the signal itself contains many outliers.
 
+> **Plain English:** Identifies oddball readings using a method that isn't thrown off by other oddballs -- like using the most typical value as a reference instead of an average that's already been skewed by bad data.
+
 - **`window`** -- must be >= 2
 - **`threshold`** -- modified z-score cutoff, typically 3.0-3.5
 - **Returns** -- boolean flag per sample (true = outlier)
@@ -146,6 +176,8 @@ These functions identify corrupt samples, sensor disconnects, and transient arti
 #### `artifact_ratio(data: &[f64], threshold_abs_diff: f64) -> f64`
 
 **Jump Fraction Metric.** Counts what fraction of consecutive sample-to-sample differences exceed an absolute threshold, then divides by the total number of intervals. A ratio of 0.0 means no artifacts; 1.0 means every sample transition is anomalous. Simple but effective for detecting sensor disconnects or motion artifacts that produce sudden, large jumps. The threshold should be set based on the physiological maximum rate of change for the signal being monitored.
+
+> **Plain English:** Counts what fraction of readings have impossibly large jumps between them -- like checking how often a heart rate monitor reports a value that couldn't possibly change that fast in real life.
 
 - **`threshold_abs_diff`** -- maximum expected sample-to-sample change in the signal's units
 - **Returns** -- fraction in [0, 1]
@@ -162,11 +194,15 @@ These functions identify corrupt samples, sensor disconnects, and transient arti
 
 The final score = `completeness * (1 - outlier_ratio) * stability_factor`. A score above 0.9 indicates a clean, reliable signal. Below 0.5 suggests significant data quality issues.
 
+> **Plain English:** Gives the sensor a report card from 0 to 1, grading how complete, steady, and glitch-free the readings are -- like a quality inspector stamping 'passed' or 'needs review' on each data stream.
+
 - **Returns** -- `SignalQualityScore { score, completeness, stable_sampling, outlier_ratio }`
 
 #### `baseline_drift_score(data: &[f64], window: usize) -> f64`
 
 **Head-vs-Tail Drift Metric.** Compares the mean of the first `window` samples to the mean of the last `window` samples, normalizes by the overall standard deviation. A score of 0 means no drift; higher values indicate progressive upward or downward shift. Useful for detecting slow sensor calibration drift or physiological trends that develop over the recording period. Requires at least `2 * window` samples.
+
+> **Plain English:** Checks whether the signal has been slowly drifting up or down over time, like noticing that a scale has gradually been reading higher and higher each day.
 
 - **`window`** -- must be <= half the data length
 - **Returns** -- dimensionless drift magnitude (units of standard deviation)
@@ -174,6 +210,8 @@ The final score = `completeness * (1 - outlier_ratio) * stability_factor`. A sco
 #### `cusum_flags(data: &[f64], drift: f64, threshold: f64) -> Vec<bool>`
 
 **Cumulative Sum Control Chart.** A classic statistical process control method that accumulates deviations from a running mean in both positive and negative directions. When either cumulative sum exceeds the threshold, a change point is flagged and the accumulators reset. The `drift` parameter acts as a tolerance band (similar to a dead zone) that prevents small fluctuations from accumulating. Particularly effective at detecting slow, sustained shifts that z-score methods might miss.
+
+> **Plain English:** Keeps a running tally of small deviations from normal and sounds the alarm when they add up, like noticing that a patient has been just slightly worse each hour until it becomes a clear pattern.
 
 - **`drift`** -- minimum per-sample deviation that contributes to the cumulative sum (>= 0)
 - **`threshold`** -- cumulative sum value that triggers a flag (> 0)
@@ -183,6 +221,8 @@ The final score = `completeness * (1 - outlier_ratio) * stability_factor`. A sco
 
 **Page-Hinkley Change Detector.** Similar to CUSUM but tracks the running minimum of the cumulative sum and flags when the current value exceeds the minimum by more than `threshold`. This makes it more sensitive to one-directional shifts (monotonic changes) while being less prone to false alarms from oscillations. The `delta` parameter is the expected per-sample drift under normal conditions. Widely used in industrial process monitoring and adapts well to physiological signal monitoring.
 
+> **Plain English:** Watches for one-directional drifts by remembering the best (lowest) cumulative score and alerting when things have gotten consistently worse, like a 'has this been getting worse?' early warning system.
+
 - **`delta`** -- expected per-sample drift under null hypothesis (>= 0)
 - **`threshold`** -- detection threshold (> 0)
 - **Returns** -- boolean flag per sample
@@ -190,6 +230,8 @@ The final score = `completeness * (1 - outlier_ratio) * stability_factor`. A sco
 #### `ewma_residual_flags(data: &[f64], alpha: f64, threshold: f64) -> Vec<bool>`
 
 **EWMA Residual Deviation Detector.** Maintains an exponentially weighted baseline estimate, computes the residual (difference between actual and baseline), and flags samples where the residual exceeds `threshold` times the running standard deviation of residuals. The `alpha` controls how quickly the baseline adapts to new data. This method naturally follows gradual trends (they get absorbed into the baseline) while flagging sudden departures. Useful for detecting acute events against a slowly varying baseline.
+
+> **Plain English:** Tracks what the signal 'should' look like based on recent history and flags moments when it suddenly deviates, like noticing when a normally calm patient suddenly spikes a fever.
 
 - **`alpha`** -- EWMA smoothing factor [0, 1]
 - **`threshold`** -- number of residual standard deviations for flagging (> 0)
@@ -205,11 +247,15 @@ Higher-order descriptors of signal morphology. These go beyond basic statistics 
 
 **Rising-Edge Threshold Crossing Counter.** Counts the number of times the signal crosses above the threshold from below. Each crossing represents a transition from "normal" to "elevated" territory. Useful for counting episodes: how many times did heart rate exceed 120? How many fever spikes above 38.5C? Only counts upward transitions (not downward), so it measures the number of distinct episodes, not the total time spent above threshold.
 
+> **Plain English:** Counts how many separate times the signal climbed above a danger line -- like counting the number of distinct fever episodes, not how long each one lasted.
+
 - **Returns** -- count of upward crossings
 
 #### `time_above_threshold_ratio(data: &[f64], threshold: f64) -> f64`
 
 **Fraction of Time Above Threshold.** Simply counts what fraction of samples exceed the threshold and divides by total length. Unlike `crossings_above_threshold` which counts episodes, this measures burden -- how much of the observation window was spent in the elevated zone. A ratio of 0.33 means the signal was above threshold for one-third of the time.
+
+> **Plain English:** Tells you what fraction of the time the readings were in the danger zone -- like saying 'the patient's heart rate was elevated 30% of the day.'
 
 - **Returns** -- fraction in [0, 1]
 
@@ -217,11 +263,15 @@ Higher-order descriptors of signal morphology. These go beyond basic statistics 
 
 **Longest Contiguous Run Above Threshold.** Finds the maximum number of consecutive samples that all exceed the threshold. This captures episode duration: not just how many episodes or what fraction of time, but the longest single sustained event. A dwell time of 120 samples at 1 Hz means the signal stayed elevated for 2 consecutive minutes without dropping back below the threshold.
 
+> **Plain English:** Finds the longest unbroken stretch where the signal stayed above a warning level -- like measuring how many days in a row a fever persisted without breaking.
+
 - **Returns** -- maximum run length in samples
 
 #### `threshold_burden(data: &[f64], threshold: f64) -> f64`
 
 **Cumulative Area Above Threshold.** Sums up `(value - threshold)` for every sample that exceeds the threshold. This combines both how often and how far the signal exceeds the boundary. A signal that barely crosses the threshold for many samples has a lower burden than one that shoots far above it for fewer samples. Analogous to the medical concept of "dose" -- not just whether a drug was taken, but how much and for how long.
+
+> **Plain English:** Adds up both how high and how long the signal stays above the danger line -- like measuring not just whether someone had a fever, but how hot and for how many hours.
 
 - **Returns** -- total area (sum of excess values, in the signal's units)
 
@@ -229,11 +279,15 @@ Higher-order descriptors of signal morphology. These go beyond basic statistics 
 
 **Peak-to-Half-Recovery Distance.** Finds the global maximum in the signal, computes half that peak value, then scans forward to find the first sample at or below the half-peak level. Returns the distance in samples, or `None` if the signal never recovers to half-peak. Measures how quickly a physiological response returns to baseline after peaking -- a slow recovery can indicate impaired homeostatic regulation.
 
+> **Plain English:** Measures how quickly a signal drops back to half its peak value -- like timing how long it takes for a fever to break after it hits its highest point.
+
 - **Returns** -- `Some(sample_count)` or `None`
 
 #### `trend_stability_index(data: &[f64], window: usize) -> f64`
 
 **Directional Persistence vs Noise Ratio.** Compares the average absolute OLS slope (from `rolling_slope`) to the average absolute sample-to-sample difference. If slopes are consistently large relative to noise, the signal has strong directional persistence (stability index near 1.0). If slopes are small relative to noise, the signal is oscillatory/random (near 0.0). A dropping trend stability index in a vital sign can signal loss of regulatory control.
+
+> **Plain English:** Rates how consistently the signal moves in one direction versus bouncing around randomly -- a high score means 'steadily heading somewhere,' a low score means 'all over the place.'
 
 - **Returns** -- value clamped to [0, 1]
 
@@ -241,11 +295,15 @@ Higher-order descriptors of signal morphology. These go beyond basic statistics 
 
 **Inter-Peak Distances.** Finds all local maxima (samples higher than both neighbors) and returns the sample distances between consecutive peaks. Essential for heart rate analysis: if peaks represent R-waves in an ECG, the intervals are RR intervals. Irregular intervals suggest arrhythmia; consistent intervals suggest normal sinus rhythm.
 
+> **Plain English:** Measures the time between successive peaks in the signal -- like timing the gaps between heartbeats to see if they're steady or erratic.
+
 - **Returns** -- distances in samples between each pair of adjacent peaks
 
 #### `spectral_flatness(data: &[f64], window: usize) -> Vec<f64>`
 
 **Wiener Spectral Flatness per Window.** Computes the ratio of the geometric mean to the arithmetic mean of the (shifted-to-positive) samples within each window. A flatness near 1.0 means the signal resembles white noise (all frequency components present equally). A flatness near 0.0 means the signal is dominated by a few large values (tonal/spiky). In clinical use: flat, noisy sensor signals have high flatness; clean, periodic waveforms have low flatness.
+
+> **Plain English:** Tells you whether the signal looks like a clean repeating pattern (like a heartbeat) or random static (like a broken sensor) -- clean patterns score low, noise scores high.
 
 - **Returns** -- flatness ratio per position, clamped to [0, 1]
 
@@ -253,11 +311,15 @@ Higher-order descriptors of signal morphology. These go beyond basic statistics 
 
 **Sign-Change Density.** Counts how often the signal crosses zero (changes sign between consecutive samples) divided by the total number of intervals. Directly related to the dominant frequency of an oscillating signal: a signal that crosses zero twice per cycle has a zero-crossing rate proportional to its frequency. Useful as a lightweight frequency estimator that works on very short signal segments where FFT would be unreliable.
 
+> **Plain English:** Counts how often the signal flips between positive and negative -- a fast-flipping signal is high-frequency (like a rapid tremor), a slow-flipping one is low-frequency (like a gentle wave).
+
 - **Returns** -- rate in [0, 1] (1.0 = alternates sign every sample)
 
 #### `fractal_dimension(data: &[f64], k_max: usize) -> f64`
 
 **Higuchi Fractal Dimension.** Estimates the fractal dimension of the signal using the Higuchi algorithm: the signal is reconstructed at multiple sub-sampling scales (`k = 2` to `k_max`), the average curve length is computed at each scale, and the fractal dimension is estimated as the negative slope of `log(length)` vs `log(k)`. A dimension near 1.0 means a smooth, predictable curve; higher values (approaching 2.0) mean rough, complex, unpredictable behavior. HRV signals with higher fractal dimensions are associated with certain cardiac pathologies.
+
+> **Plain English:** Measures how rough and complex the signal's shape is on a scale of 1 (smooth like a straight line) to 2 (jagged like a mountain range) -- healthy signals sit somewhere in between.
 
 - **`k_max`** -- maximum sub-sampling scale (must be >= 2 and < data length)
 - **Returns** -- fractal dimension estimate (typically 1.0 to 2.0)
@@ -266,6 +328,8 @@ Higher-order descriptors of signal morphology. These go beyond basic statistics 
 
 **Autocorrelation at Configurable Lag.** Computes the normalized cross-correlation of the signal with a time-shifted copy of itself at the specified lag. At lag 0 the autocorrelation is always 1.0 (a signal is perfectly correlated with itself). At the signal's dominant period, autocorrelation peaks near 1.0 again. Useful for detecting periodicity: scan multiple lags and find where autocorrelation peaks to estimate the period.
 
+> **Plain English:** Compares the signal to a delayed copy of itself -- if the signal repeats every 5 beats, comparing it to a 5-beat-delayed version will show a strong match, like recognizing a song by its refrain.
+
 - **`lag`** -- number of samples to shift (0 = self-correlation = 1.0)
 - **Returns** -- correlation coefficient in [-1, 1]
 
@@ -273,11 +337,15 @@ Higher-order descriptors of signal morphology. These go beyond basic statistics 
 
 **Zero-Crossing-Based Frequency Estimate.** Demeans the signal, computes autocorrelation at all lags up to half the signal length, and returns `1.0 / best_lag` where `best_lag` is the lag with highest autocorrelation. This gives the dominant periodic frequency in cycles per sample. For a signal sampled at 100 Hz with a dominant frequency of 0.25 cycles/sample, the physical frequency is 25 Hz.
 
+> **Plain English:** Finds the main repeating rhythm in the signal -- like identifying that a heartbeat is thumping at one beat per second by looking at the overall pattern.
+
 - **Returns** -- frequency in cycles/sample (e.g., 0.25 = one cycle every 4 samples)
 
 #### `signal_to_noise_ratio(data: &[f64]) -> f64`
 
 **SNR in Decibels.** Estimates signal-to-noise ratio as `20 * log10(|mean| / std)`. The mean represents the "signal" level and the standard deviation represents the "noise." A constant signal has infinite SNR; a zero-mean noisy signal has negative SNR. Useful for comparing signal quality across different sensors or monitoring conditions.
+
+> **Plain English:** Compares how strong the useful signal is versus how much background static there is -- like rating how clearly you can hear someone speaking at a noisy party.
 
 - **Returns** -- SNR in dB (higher = cleaner signal)
 
@@ -285,17 +353,23 @@ Higher-order descriptors of signal morphology. These go beyond basic statistics 
 
 **Total Signal Energy.** Computes the sum of squared sample values: `sum(x_i^2)`. Energy captures both the amplitude and duration of a signal's activity -- a sustained moderate signal can have the same energy as a brief intense one. Used as a baseline for comparing different signal segments or as a feature in classification pipelines.
 
+> **Plain English:** Adds up the total 'oomph' of the signal by squaring and summing all the readings -- bigger and longer signals have more energy, just like a loud, long sound carries more energy than a quiet, brief one.
+
 - **Returns** -- energy in squared units of the input
 
 #### `rms_power(data: &[f64]) -> f64`
 
 **Root Mean Square Power.** Computes `sqrt(mean(x_i^2))` -- the square root of signal energy divided by sample count. RMS represents the effective amplitude of the signal, accounting for both positive and negative excursions. Widely used in ECG analysis to quantify overall signal magnitude independent of waveform shape.
 
+> **Plain English:** Calculates the effective average strength of the signal, like measuring the 'typical loudness' of an audio recording by averaging out the peaks and valleys.
+
 - **Returns** -- RMS value in the same units as input
 
 #### `moving_average_crossover(data: &[f64], fast_window: usize, slow_window: usize) -> Vec<MACross>`
 
 **Fast/Slow MA Crossover Events.** Computes two moving averages with different window sizes and detects where they cross. When the fast MA crosses above the slow MA, that's a `Bullish` signal (uptrend starting). When the fast MA crosses below, that's `Bearish` (downtrend starting). The crossover lag means this is a lagging indicator -- it confirms trends rather than predicting them. Commonly used in vital-sign trend monitoring to detect sustained directional changes while filtering out transient noise.
+
+> **Plain English:** Compares a fast-updating average with a slower one and flags when they cross paths -- like noticing when today's weather is consistently warmer than the weekly average, signaling a shift.
 
 - **`fast_window`** -- must be >= 2 and < slow_window
 - **`slow_window`** -- must be >= 2 and <= data length
@@ -305,11 +379,15 @@ Higher-order descriptors of signal morphology. These go beyond basic statistics 
 
 **Frequency-Weighted Signal Energy.** Computes total signal energy (sum of squared values after mean removal) weighted by the zero-crossing rate. High-frequency oscillating signals get higher scores than flat or slowly-varying signals with the same energy. Useful for distinguishing active signal content (oscillations, heartbeats) from baseline drift or DC offset.
 
+> **Plain English:** Measures how much of the signal's energy comes from actual oscillations versus just sitting flat -- like separating the energy of ocean waves from the stillness of a calm lake.
+
 - **Returns** -- weighted energy value
 
 #### `waveform_symmetry(data: &[f64]) -> f64`
 
 **Waveform Symmetry Ratio.** Compares the left and right halves of the signal around the central sample. Computes the ratio of absolute differences to absolute values between mirrored samples, subtracted from 1.0. A perfectly symmetric waveform (like a sine wave or a symmetric triangle) scores near 1.0; a heavily asymmetric waveform scores near 0.0. In clinical use, many normal physiological waveforms have characteristic symmetry profiles -- deviations can indicate pathology.
+
+> **Plain English:** Checks whether the left half of the signal looks like a mirror image of the right half -- healthy heartbeats are often symmetric, while lopsided shapes can signal problems.
 
 - **Returns** -- symmetry ratio in [0, 1]
 
@@ -317,17 +395,23 @@ Higher-order descriptors of signal morphology. These go beyond basic statistics 
 
 **Peak Timing Jitter.** Given a sequence of peak indices (e.g., from R-wave detection), computes the coefficient of variation of the inter-peak intervals: `std(intervals) / mean(intervals)`. Low jitter (< 0.05) indicates a regular rhythm; high jitter (> 0.1) indicates timing irregularity. In cardiology, high RR-interval jitter is associated with arrhythmias and autonomic dysfunction.
 
+> **Plain English:** Measures how irregular the timing between beats is -- a metronome-like heartbeat scores low jitter, while a skipping, irregular rhythm scores high.
+
 - **Returns** -- dimensionless jitter ratio (lower = more regular)
 
 #### `peak_prominence(data: &[f64]) -> Vec<(usize, f64)>`
 
 **Peak Height Above Surrounding Minima.** For each local maximum, finds the lowest point to the left and the lowest point to the right, then computes how much the peak rises above the higher of those two minima. Prominence measures how "stand-out" a peak is regardless of absolute amplitude -- a small peak in a flat region can have high prominence, while a large peak between even larger peaks can have low prominence. Returns both the peak index and its prominence value.
 
+> **Plain English:** Measures how much each peak stands out from its surroundings -- a tall peak rising from a flat baseline scores high, while a bump between bigger bumps scores low.
+
 - **Returns** -- list of (peak_index, prominence) pairs
 
 #### `signal_saturation_ratio(data: &[f64], lo: f64, hi: f64) -> f64`
 
 **Clipping / Saturation Fraction.** Counts what fraction of samples fall at or beyond the signal's valid range bounds (`lo` and `hi`). A high saturation ratio indicates sensor clipping, ADC saturation, or signal loss -- the sensor is hitting its measurement limits and can't represent the true physiological value. Even a few percent saturation can seriously bias downstream analytics.
+
+> **Plain English:** Counts what fraction of readings are pinned at the sensor's maximum or minimum limit -- like noticing when a thermometer is stuck at its highest reading and can't go any higher.
 
 - **`lo`** -- lower bound of valid range (must be < hi)
 - **`hi`** -- upper bound of valid range
@@ -343,6 +427,8 @@ Time-domain HRV metrics computed from RR interval sequences (in milliseconds). T
 
 **Root Mean Square of Successive Differences.** The most commonly used short-term HRV metric. Computes `sqrt(mean((RR_i - RR_{i-1})^2))`. RMSSD reflects parasympathetic (vagal) activity -- higher values indicate stronger vagal tone and better autonomic flexibility. Low RMSSD is associated with stress, fatigue, and cardiac risk. Values are in milliseconds; typical healthy range is 20-60 ms.
 
+> **Plain English:** Measures how much the time between heartbeats keeps changing -- healthy hearts vary a lot, stressed hearts beat like a metronome.
+
 - **Input** -- RR intervals in milliseconds (must be positive, at least 2)
 - **Returns** -- RMSSD in ms
 
@@ -350,12 +436,16 @@ Time-domain HRV metrics computed from RR interval sequences (in milliseconds). T
 
 **Standard Deviation of NN Intervals.** The broadest time-domain HRV measure, reflecting both sympathetic and parasympathetic influences. Computes the population standard deviation of all RR intervals. Longer recordings give more meaningful SDNN values. In clinical practice, SDNN < 50 ms suggests reduced autonomic modulation; > 100 ms suggests healthy variability.
 
+> **Plain English:** Measures the overall spread of time gaps between heartbeats -- a wide spread means the heart is adapting flexibly, a narrow spread means it's stuck in a rut.
+
 - **Input** -- RR intervals in milliseconds (must be positive, at least 2)
 - **Returns** -- SDNN in ms
 
 #### `rr_interval_variability(rr_intervals_ms: &[f64], cv_threshold: f64) -> RRVariability`
 
 **Regular vs Irregular Rhythm Classification.** Computes the coefficient of variation (CV = std/mean) of RR intervals and classifies the rhythm as `Regular` (CV <= threshold) or `Irregular` (CV > threshold). A simple binary classifier for rhythm regularity. The threshold should be tuned for the clinical context; 0.10 (10%) is a common starting point.
+
+> **Plain English:** Decides whether the heartbeat rhythm is regular or irregular -- like a doctor listening to a heartbeat and saying 'that's steady' or 'that's skipping around.'
 
 - **`cv_threshold`** -- CV cutoff for classification (must be > 0)
 - **Returns** -- `RRVariability::Regular` or `RRVariability::Irregular`
@@ -368,12 +458,16 @@ Time-domain HRV metrics computed from RR interval sequences (in milliseconds). T
 
 **Bounded-Gap Linear Interpolation.** Scans for runs of NaN values and fills them with linear interpolation between the surrounding non-NaN values, but only if the gap length is <= `max_gap`. Longer gaps are left as NaN to avoid fabricating data. This preserves the integrity of the signal while repairing short dropouts from temporary sensor disconnection or transmission errors.
 
+> **Plain English:** Fills in brief gaps in the data by drawing a straight line between the last good reading and the next good one, like connecting the dots when a few points are missing.
+
 - **`max_gap`** -- maximum number of consecutive NaNs to fill (0 = don't fill any)
 - **Returns** -- repaired signal (same length)
 
 #### `derivative(data: &[f64]) -> Vec<f64>`
 
 **First Derivative (Finite Differences).** Estimates the rate of change at each point using central differences for interior points (more accurate) and forward/backward differences at the endpoints. The derivative reveals where the signal is changing fastest -- peaks in the derivative correspond to the steepest rising/falling edges of the original waveform. Useful for detecting onset times and measuring response latencies.
+
+> **Plain English:** Shows how fast the signal is changing at each moment -- like a speedometer for vital signs, telling you whether blood pressure is shooting up fast or barely moving.
 
 - **Input** -- must be >= 2 samples
 - **Returns** -- rate of change per sample (in input units per sample)
@@ -382,12 +476,16 @@ Time-domain HRV metrics computed from RR interval sequences (in milliseconds). T
 
 **Second Derivative (Curvature/Acceleration).** Estimates the rate of change of the rate of change using the discrete Laplacian: `x[i+1] - 2*x[i] + x[i-1]`. Positive second derivative = concave up (accelerating upward), negative = concave down (decelerating). Zero crossings of the second derivative correspond to inflection points where the signal changes curvature. Useful for finding exact peak locations (second derivative crosses zero at the peak).
 
+> **Plain English:** Shows whether the signal is accelerating or decelerating -- like feeling whether a roller coaster is speeding up (pushing you back) or slowing down (easing off).
+
 - **Input** -- must be >= 3 samples
 - **Returns** -- curvature values
 
 #### `resample_linear(data: &[f64], n: usize) -> Vec<f64>`
 
 **Linear Interpolation Resampling.** Resamples the input to a target length `n` using linear interpolation. The first and last output values always match the first and last input values. Useful for normalizing signals to a common length before feature extraction or comparison, regardless of their original sample count.
+
+> **Plain English:** Stretches or shrinks the signal to a desired length while keeping its overall shape, like resizing a photo without distorting the image.
 
 - **`n`** -- target output length (must be >= 2)
 - **Returns** -- resampled signal of exactly `n` samples
@@ -396,11 +494,15 @@ Time-domain HRV metrics computed from RR interval sequences (in milliseconds). T
 
 **Percentage Rate of Change.** Computes the percentage change between consecutive samples: `((x[i] - x[i-1]) / |x[i-1]|) * 100`. The first sample always gets 0.0 (no previous value to compare against). Useful for tracking how rapidly a vital sign is changing in percentage terms, independent of its absolute level.
 
+> **Plain English:** Shows the percentage change from one reading to the next -- like saying 'blood pressure went up 5% in the last minute' instead of just giving the raw numbers.
+
 - **Returns** -- percentage changes (0.0 for first sample)
 
 #### `moving_percentile(data: &[f64], window: usize, percentile: f64) -> Vec<f64>`
 
 **Arbitrary Rolling Percentile.** Computes the value at a given percentile rank within each rolling window using linear interpolation between sorted values. Percentile 50 = median, 25 = first quartile, 75 = third quartile, 95 = 95th percentile. More flexible than `rolling_median` which is fixed at the 50th percentile. Useful for establishing dynamic confidence bands (e.g., P5-P95 range) around a vital sign.
+
+> **Plain English:** Tells you what value a certain percentage of recent readings fall below -- like saying '90% of the patient's recent heart rates were below this number.'
 
 - **`percentile`** -- target percentile in [0, 100]
 - **Returns** -- percentile values per position
@@ -412,6 +514,8 @@ Time-domain HRV metrics computed from RR interval sequences (in milliseconds). T
 #### `vital_sign_zscore(data: &[f64], pop_mean: f64, pop_std: f64) -> Vec<f64>`
 
 **Patient-Relative Z-Scores.** Translates each sample into the number of standard deviations it deviates from a reference population mean. A z-score of +2.0 means the value is 2 standard deviations above the population average. This enables comparing a patient's vitals against established norms rather than absolute thresholds. Requires a known population mean and standard deviation (from clinical literature or a reference dataset).
+
+> **Plain English:** Translates each reading into 'how unusual is this compared to the general population' -- a score of +2 means 'higher than about 97% of people,' like grading on a curve for the whole hospital's patient population.
 
 - **`pop_mean`** -- reference population mean
 - **`pop_std`** -- reference population standard deviation (must be > 0)
@@ -436,6 +540,8 @@ Deterioration detection inspired by the UK's National Early Warning Score (NEWS2
 
 The `risk_score` (0-4) counts how many flags are active. `high_risk` is true when 2+ flags are active simultaneously. This is a simplified model based on the "qSOFA" rapid sepsis assessment criteria.
 
+> **Plain English:** Checks four key vital signs at a single moment and raises red flags for any that are in the danger zone, like a quick bedside check that asks 'is anything alarming right now?'
+
 #### `deterioration_trend_flags(hr, sbp, spo2, rr, window) -> TrendDeteriorationFlags`
 
 **Trend-Based Deterioration Detector.** Takes time-series of all four vital signs and analyzes whether each is trending in a clinically concerning direction over the last `window` samples using OLS linear regression:
@@ -448,6 +554,8 @@ The `risk_score` (0-4) counts how many flags are active. `high_risk` is true whe
 | `rising_respiratory_rate` | Positive RR slope |
 
 `high_risk` when 3+ trends are concerning simultaneously. This catches gradual deterioration that snapshot methods miss.
+
+> **Plain English:** Looks at whether each vital sign is heading in a worrying direction over time, like noticing that blood pressure has been slowly dropping over the past hour even though it's still technically 'normal.'
 
 #### `news2_lite_score(hr, rr, spo2, sbp, temp, consciousness) -> News2LiteScore`
 
@@ -464,6 +572,8 @@ The `risk_score` (0-4) counts how many flags are active. `high_risk` is true whe
 
 `high_risk` is flagged when: total >= 7, any single parameter scores 3, or altered consciousness is present.
 
+> **Plain English:** Adds up points for how far each vital sign is from safe levels, giving a single number that tells nurses how worried to be.
+
 #### `risk_summary(hr, sbp, spo2, rr, temp, consciousness, trend_window) -> RiskSummary`
 
 **Combined Risk Aggregator.** Runs all three scoring methods (snapshot deterioration, trend deterioration, NEWS2-lite) in one call and combines their results:
@@ -474,9 +584,13 @@ The `risk_score` (0-4) counts how many flags are active. `high_risk` is true whe
 - `total_score` -- sum of all three
 - `high_risk` -- true if any individual method flags high risk, or total >= 8
 
+> **Plain English:** Runs three different risk checks at once and combines them into one overall assessment, like getting a second and third opinion before making a clinical decision.
+
 #### `early_warning_window(high_risk_windows: &[bool], min_consecutive: usize) -> EarlyWarningWindow`
 
 **Sustained Alert Detector.** Takes a sequence of boolean risk flags (one per observation window) and checks whether `min_consecutive` or more high-risk windows occurred back-to-back. This filters out brief transient alerts and only triggers when risk is sustained -- reducing alarm fatigue while maintaining sensitivity to genuine deterioration.
+
+> **Plain English:** Only triggers an alert if the danger signs persist for several checks in a row, like requiring a fever to last three days before calling it serious -- cutting down on false alarms.
 
 - **`min_consecutive`** -- number of consecutive high-risk windows required for alert (must be >= 1)
 - **Returns** -- `should_alert` (bool) + `sustained_windows` (longest consecutive run)
@@ -492,6 +606,8 @@ The `risk_score` (0-4) counts how many flags are active. `high_risk` is true whe
 | `Stable` | Change is within +/- delta_threshold |
 
 The delta threshold lets you tune sensitivity: a threshold of 1 means any single-point change triggers a state change; a threshold of 3 requires more dramatic shifts.
+
+> **Plain English:** Compares the patient's risk level now versus the previous check and decides if they're getting better, getting worse, or holding steady -- like a nurse saying 'the patient is improving' or 'they're going downhill.'
 
 ### Error Handling
 
