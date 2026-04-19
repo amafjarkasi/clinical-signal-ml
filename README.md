@@ -10,7 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/rust-1.70%2B-orange" alt="Rust 1.70+" />
-  <img src="https://img.shields.io/badge/tests-113%20passing-brightgreen" alt="113 tests passing" />
+  <img src="https://img.shields.io/badge/tests-127%20passing-brightgreen" alt="127 tests passing" />
   <img src="https://img.shields.io/badge/TDD-red%E2%86%92green-blue" alt="TDD red-green" />
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License" />
 </p>
@@ -603,6 +603,10 @@ clinical-signal-core/src/
   clinical.rs     HRV (RMSSD, SDNN), RR variability, deterioration flags, NEWS2-lite, risk summary, early warning,
                   patient state transitions, signal quality scoring
   transform.rs    Derivatives, resampling, interpolation, rate of change, signal energy/RMS/SNR, z-scores
+  kalman.rs       1D Kalman filter (configurable), Kalman baseline estimator, Kalman residual detector
+  streaming.rs    Stateful streaming processors: EWMA, running mean, Welford variance, CUSUM
+clinical-signal-core/benches/
+  benchmarks.rs   Criterion benchmarks for all hot paths (EWMA, rolling, spikes, MAD, HRV, Kalman, streaming)
 ```
 
 ### Design Decisions
@@ -656,11 +660,12 @@ Tests are organized chronologically by batch number, making it easy to trace whi
 | 4 | Signal complexity (fractal, entropy, spectral) | Done |
 | 5 | Autocorrelation, frequency, SNR, HRV classification, z-scores, moments | Done |
 | 6 | Derivatives, resampling, percentiles, band energy, symmetry, jitter, prominence | Done |
-| 7 | Kalman-filter baseline tracking | Planned |
-| 8 | Streaming / chunked API for real-time bedside use | Planned |
-| 9 | WASM bindings + browser demo | Planned |
-| 10 | Benchmark harness for reproducible perf regression tracking | Planned |
+| 7 | Kalman-filter baseline tracking | Done |
+| 8 | Streaming / chunked API for real-time bedside use | Done |
+| 10 | Benchmark harness for reproducible perf regression tracking | Done |
+
+**Phase 9 (WASM bindings + browser demo)** is the only remaining planned phase and requires `wasm-pack` tooling setup.
 
 ## Status
 
-Active development. Shipped in **batched TDD passes** (5-10 features per batch, tests written red then implemented green). Currently at **57 public functions** across **7 source modules** with **113 passing tests**.
+Active development. Shipped in **batched TDD passes** (5-10 features per batch, tests written red then implemented green). Currently at **63 public functions** across **9 source modules** with **127 passing tests** and a **criterion benchmark harness** covering hot paths.

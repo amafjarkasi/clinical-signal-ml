@@ -4,6 +4,8 @@ pub mod outlier;
 pub mod features;
 pub mod clinical;
 pub mod transform;
+pub mod kalman;
+pub mod streaming;
 
 // Re-export all public types
 pub use types::*;
@@ -12,6 +14,8 @@ pub use outlier::*;
 pub use features::*;
 pub use clinical::*;
 pub use transform::*;
+pub use kalman::*;
+pub use streaming::*;
 
 #[cfg(test)]
 mod tests {
