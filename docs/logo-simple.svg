@@ -1,0 +1,57 @@
+<svg width="1400" height="320" viewBox="0 0 1400 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Clinical Signal ML logo</title>
+  <desc id="desc">Clinical Signal ML wordmark with full-width pulse waveform.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#EEF8F3"/>
+      <stop offset="100%" stop-color="#E7F0FF"/>
+    </linearGradient>
+    <linearGradient id="pulse" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0B7A5B"/>
+      <stop offset="40%" stop-color="#1E66B8"/>
+      <stop offset="100%" stop-color="#0B7A5B"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Full-width background -->
+  <rect x="0" y="0" width="1400" height="320" rx="28" fill="url(#bg)"/>
+
+  <!-- Full-width waveform spanning the entire banner -->
+  <path d="M0 220 H120 L180 170 L260 260 L380 100 L460 190 H560
+           L620 160 L680 230 L760 120 L840 200 H940
+           L1000 165 L1060 240 L1140 110 L1220 195 H1400"
+        fill="none"
+        stroke="url(#pulse)"
+        stroke-width="6"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        opacity="0.18"/>
+
+  <!-- Centered title block -->
+  <text x="700" y="140"
+        font-family="Segoe UI, SF Pro Display, Helvetica Neue, Arial, sans-serif"
+        font-size="80"
+        font-weight="700"
+        fill="#142635"
+        text-anchor="middle"
+        letter-spacing="1">Clinical Signal ML</text>
+
+  <!-- Tagline -->
+  <text x="700" y="190"
+        font-family="Segoe UI, SF Pro Text, Helvetica Neue, Arial, sans-serif"
+        font-size="28"
+        font-weight="500"
+        fill="#345A74"
+        text-anchor="middle"
+        letter-spacing="0.5">Healthcare Time-Series · Edge Intelligence · Rust Core</text>
+
+  <!-- Accent pulse icon centered below text -->
+  <g transform="translate(560 220)">
+    <path d="M0 30 H50 L70 6 L100 54 L140 -10 L170 30 H280"
+          fill="none"
+          stroke="url(#pulse)"
+          stroke-width="7"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+  </g>
+</svg>

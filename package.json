@@ -1,0 +1,23 @@
+{
+  "name": "clinical-signal-ml",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tiny, fast machine learning for healthcare signals and time-series.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "machine-learning",
+    "healthcare",
+    "clinical",
+    "time-series",
+    "signal-processing",
+    "forecasting",
+    "vitals"
+  ],
+  "scripts": {
+    "build": "cargo build --workspace",
+    "test": "cargo test --workspace",
+    "build:rust": "cargo build --workspace",
+    "test:rust": "cargo test --workspace"
+  }
+}

@@ -1,0 +1,30 @@
+# Rust
+/target/
+**/target/
+/Cargo.lock
+*.pdb
+
+# Node
+node_modules/
+**/node_modules/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Debug / build artifacts
+*.d
+*.ilk
+*.exp
+*.lib
+*.exe
+*.pdb
+debug/
